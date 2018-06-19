@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,5 +62,29 @@ func TestRootHandler(t *testing.T) {
 	}
 	if trw.Code != 200 {
 		t.Error("Expected status:", 200, "got", trw.Body.String())
+	}
+}
+
+func TestNotFoundHandler(t *testing.T) {
+	r := mux.NewRouter()
+	r.NotFoundHandler = http.HandlerFunc(logging(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, `Not Found`)
+	}))
+
+	req, err := http.NewRequest("GET",
+		"/b6c8528975c1af6e14dac4e61",
+		nil)
+	if err != nil {
+		t.Error(err)
+	}
+	trw := httptest.NewRecorder()
+	r.ServeHTTP(trw, req)
+	msg := "Not Found"
+	if trw.Body.String() != msg {
+		t.Error("Expected", msg, "got", trw.Body.String())
+	}
+	if trw.Code != 404 {
+		t.Error("Expected status:", 404, "got", trw.Body.String())
 	}
 }
