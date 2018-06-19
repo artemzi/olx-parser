@@ -31,7 +31,7 @@ vendor: clean
 
 build: vendor
 	CGO_ENABLED=0 GOOS=${GOOS} go build -a -installsuffix cgo \
-		-ldflags "-s -w -X ${PROJECT}/version.RELEASE=${RELEASE} -X ${PROJECT}/version.COMMIT=${COMMIT} -X ${PROJECT}/version.REPO=${REPO_INFO}" \
+		-ldflags "-s -w -X ${PROJECT}/version.STAGE=${NAMESPACE} -X ${PROJECT}/version.RELEASE=${RELEASE} -X ${PROJECT}/version.COMMIT=${COMMIT} -X ${PROJECT}/version.REPO=${REPO_INFO}" \
 		-o ${APP}
 
 container: build
@@ -51,7 +51,7 @@ fmt:
 
 lint:
 	@echo "+ $@"
-	@go list -f '{{if len .TestGoFiles}}"golint {{.Dir}}/..."{{end}}' $(shell go list ${PROJECT}/... | grep -v vendor) | xargs -L 1 sh -c
+	@go list -f '{{if len .TestGoFiles}}"gometalinter --disable-all --enable=golint --vendor {{.Dir}}/..."{{end}}' $(shell go list ${PROJECT}/... | grep -v vendor) | xargs -L 1 sh -c
 
 vet:
 	@echo "+ $@"

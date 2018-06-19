@@ -24,11 +24,18 @@
 #   go-tests = true
 #   unused-packages = true
 
-
-[[constraint]]
-  name = "github.com/takama/router"
-  version = "0.6.5"
-
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  name = "github.com/bitly/go-simplejson"
+  version = "0.5.0"
+
+[[constraint]]
+  name = "github.com/gorilla/mux"
+  version = "1.6.2"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.5"

@@ -7,4 +7,6 @@ var (
 	REPO = "UNKNOWN"
 	// COMMIT returns the short sha from git
 	COMMIT = "UNKNOWN"
+	// DEBUG set application level (used for logging [dev, prod])
+	STAGE = "UNKNOWN"
 )
