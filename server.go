@@ -10,16 +10,14 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/artemzi/olx-parser/version"
 	simplejson "github.com/bitly/go-simplejson"
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 // DEFAULTPORT returns default port number
 const DEFAULTPORT = "8080"
-
-var log = logrus.New()
 
 func healthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -47,6 +45,45 @@ func root(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, fmt.Sprintf("PARSER v%s\n", version.RELEASE))
 }
 
+func notFound(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
+	io.WriteString(w, `Not Found`)
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Info(fmt.Sprintf("%s: %s", r.Method, r.RequestURI))
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func logging(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Warn(fmt.Sprintf("Not Found (%s) %s", r.Method, r.RequestURI))
+
+		f(w, r)
+	}
+}
+
+func init() {
+	switch version.STAGE {
+	case "dev":
+		log.SetLevel(log.DebugLevel)
+	case "prod":
+		f, err := os.OpenFile(fmt.Sprintf("./storage/logs/%s.log", time.Now().Local().Format("2006-01-02")),
+			os.O_APPEND|os.O_WRONLY|os.O_CREATE,
+			0755)
+		if err != nil {
+			log.Error(err)
+		}
+
+		log.SetFormatter(&log.JSONFormatter{})
+		log.SetOutput(f)
+		log.SetLevel(log.InfoLevel)
+	}
+}
+
 func main() {
 	var wait time.Duration
 	flag.DurationVar(&wait, "graceful-timeout",
@@ -63,6 +100,10 @@ func main() {
 	r.HandleFunc("/info", info).Methods("GET")
 	r.HandleFunc("/healthz", healthz).Methods("GET")
 	r.HandleFunc("/", root).Methods("GET")
+	r.NotFoundHandler = http.HandlerFunc(logging(notFound))
+
+	r.Use(loggingMiddleware)
+
 	srv := &http.Server{
 		Addr: fmt.Sprintf("0.0.0.0:%s", port),
 		// Good practice to set timeouts to avoid Slowloris attacks.
@@ -73,8 +114,9 @@ func main() {
 	}
 
 	go func() {
+		log.Debug(fmt.Sprintf("Server started on: http://0.0.0.0:%s", port))
 		if err := srv.ListenAndServe(); err != nil {
-			log.Println(err)
+			log.Error(err)
 		}
 	}()
 
@@ -95,6 +137,6 @@ func main() {
 	// Optionally, you could run srv.Shutdown in a goroutine and block on
 	// <-ctx.Done() if your application should wait for other services
 	// to finalize based on context cancellation.
-	log.Println("shutting down")
+	log.Info("shutting down")
 	os.Exit(0)
 }
