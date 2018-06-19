@@ -51,7 +51,7 @@ fmt:
 
 lint:
 	@echo "+ $@"
-	@go list -f '{{if len .TestGoFiles}}"golint {{.Dir}}/..."{{end}}' $(shell go list ${PROJECT}/... | grep -v vendor) | xargs -L 1 sh -c
+	@go list -f '{{if len .TestGoFiles}}"gometalinter --disable-all --enable=golint --vendor {{.Dir}}/..."{{end}}' $(shell go list ${PROJECT}/... | grep -v vendor) | xargs -L 1 sh -c
 
 vet:
 	@echo "+ $@"

@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/artemzi/olx-parser/version"
-	"github.com/takama/router"
+	"github.com/gorilla/mux"
 )
 
 func TestHealthHandler(t *testing.T) {
-	r := router.New()
-	r.GET("/healthz", healthz)
+	r := mux.NewRouter()
+	r.HandleFunc("/healthz", healthz).Methods("GET")
 	req, err := http.NewRequest("GET", "/healthz", nil)
 	if err != nil {
 		t.Error(err)
@@ -28,16 +28,16 @@ func TestHealthHandler(t *testing.T) {
 }
 
 func TestInfoHandler(t *testing.T) {
-	r := router.New()
-	r.GET("/info", info)
+	r := mux.NewRouter()
+	r.HandleFunc("/info", info).Methods("GET")
 	req, err := http.NewRequest("GET", "/info", nil)
 	if err != nil {
 		t.Error(err)
 	}
 	trw := httptest.NewRecorder()
 	r.ServeHTTP(trw, req)
-	inf := "{\n  \"commit\": \"" + version.COMMIT + "\",\n  \"repo\": \"" + version.REPO +
-		"\",\n  \"version\": \"" + version.RELEASE + "\"\n}"
+	inf := "{\"commit\":\"" + version.COMMIT + "\",\"repo\":\"" + version.REPO +
+		"\",\"version\":\"" + version.RELEASE + "\"}"
 	if trw.Body.String() != inf {
 		t.Error("Expected", inf, "got", trw.Body.String())
 	}
@@ -47,8 +47,8 @@ func TestInfoHandler(t *testing.T) {
 }
 
 func TestRootHandler(t *testing.T) {
-	r := router.New()
-	r.GET("/", root)
+	r := mux.NewRouter()
+	r.HandleFunc("/", root).Methods("GET")
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
 		t.Error(err)
