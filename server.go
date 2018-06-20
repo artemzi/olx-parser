@@ -16,7 +16,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DEFAULTPORT returns default port number
 const DEFAULTPORT = "8080"
 
 func healthz(w http.ResponseWriter, r *http.Request) {
@@ -33,7 +32,7 @@ func info(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := json.MarshalJSON()
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -45,11 +44,7 @@ func root(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, fmt.Sprintf("PARSER v%s\n", version.RELEASE))
 }
 
-func notFound(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotFound)
-	io.WriteString(w, `Not Found`)
-}
-
+// loggingMiddleware used for routes logging
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Info(fmt.Sprintf("%s: %s", r.Method, r.RequestURI))
@@ -58,6 +53,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// logging is wrapper for NotFoundHandler
 func logging(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Warn(fmt.Sprintf("Not Found (%s) %s", r.Method, r.RequestURI))
@@ -100,9 +96,12 @@ func main() {
 	r.HandleFunc("/info", info).Methods("GET")
 	r.HandleFunc("/healthz", healthz).Methods("GET")
 	r.HandleFunc("/", root).Methods("GET")
-	r.NotFoundHandler = http.HandlerFunc(logging(notFound))
-
 	r.Use(loggingMiddleware)
+
+	r.NotFoundHandler = http.HandlerFunc(logging(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		io.WriteString(w, `Not Found`)
+	}))
 
 	srv := &http.Server{
 		Addr: fmt.Sprintf("0.0.0.0:%s", port),
@@ -120,15 +119,11 @@ func main() {
 		}
 	}()
 
+	// ====== Graceful shutdown
 	c := make(chan os.Signal, 1)
-	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
-	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
 	signal.Notify(c, os.Interrupt)
-
-	// Block until we receive our signal.
 	<-c
 
-	// Create a deadline to wait for.
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	// Doesn't block if no connections, but will otherwise wait
@@ -139,4 +134,5 @@ func main() {
 	// to finalize based on context cancellation.
 	log.Info("shutting down")
 	os.Exit(0)
+	// ==========
 }
