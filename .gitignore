@@ -2,3 +2,4 @@ olx-parser
 vendor
 *.lock
 .idea
+.cache

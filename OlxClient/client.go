@@ -1,95 +1,34 @@
 package main
 
 import (
-	"net/http"
-	log "github.com/sirupsen/logrus"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"sync"
+	"github.com/gocolly/colly"
+
 	"strings"
-	"net/url"
-	"strconv"
 )
 
 // Defaults (will be changed in future)
 type Cfg struct {
-	BASEURL string
-	CATEGORY string
+	BASEURL     string
+	CATEGORY    string
 	SUBCATEGORY string
-	REGION string
+	REGION      string
 }
 
-type OlxHttpClient struct {
-	http *http.Client
-}
-
-type Node struct {
-	URL     string
-	Title   string
-	Time    string
-}
-
-func (c *OlxHttpClient) OlxGet(url string) *goquery.Document {
-	log.Debug("OlxGet ", url)
-
-	res, err := c.http.Get(url)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
-		return nil
-	}
-	doc, err := goquery.NewDocumentFromReader(res.Body)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-	return doc
-}
-
-func (c *OlxHttpClient) OlxGetPages(u string) []Node {
-	var wg sync.WaitGroup
-	log.Debug("OlxGetPages ", u)
-
-	doc := c.OlxGet(u)
-	var nodes []Node
-
-	// Load the HTML document
-	doc.Find("#offers_table").Each(func(i int, s *goquery.Selection) {
-		s.Find(".wrap").Each(func(i int, s *goquery.Selection) {
-			node := Node{}
-			title := s.Find("h3")
-			u, _ := title.Find("a").Attr("href")
-			time := s.Find(".space").Eq(2).Find("p").Last().Text()
-
-			node.Title = strings.TrimSpace(title.Text())
-			node.URL = strings.TrimSpace(u)
-			node.Time = strings.TrimSpace(time)
-
-			nodes = append(nodes, node)
-		})
-	})
-
-	pageUrl, ok := doc.Find(".pager").Find(".next").Find("a").Attr("href")
-	// reduce size for debug
-	urlString, _ := url.Parse(pageUrl)
-	page, _ := strconv.Atoi(urlString.Query().Get("page"))
-	// ===
-	if ok && page <= 10 {
-		wg.Add(1)
-		go func(d *goquery.Document) {
-			defer wg.Done()
-		}(doc)
-	}
-
-	wg.Wait()
-	return nodes
+type Adverts struct {
+	URL    string
+	Title  string
+	Place  string
+	Meta   string
+	Images []string
+	Text   string
 }
 
 func main() {
+	var (
+		adverts []Adverts
+	)
+
 	cfg := &Cfg{
 		"https://www.olx.ua",
 		"transport",
@@ -97,9 +36,59 @@ func main() {
 		"donetsk",
 	}
 
-	u := fmt.Sprintf("%s/%s/%s/%s", cfg.BASEURL, cfg.CATEGORY, cfg.SUBCATEGORY, cfg.REGION)
-	cli := &OlxHttpClient{&http.Client{}}
-	data := cli.OlxGetPages(u)
+	// Instantiate default collector
+	collector := colly.NewCollector(
+		colly.MaxDepth(2),
+		colly.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36"),
+		colly.Async(true),
+		colly.CacheDir("./.cache"),
+	)
 
-	fmt.Printf("%v\n", data)
+	// Instantiate collector for details page
+	detailCollector := collector.Clone()
+
+	// visit each advert
+	collector.OnHTML(".wrap .offer .space a[href]", func(e *colly.HTMLElement) {
+		link := e.Attr("href")
+		detailCollector.Visit(link)
+	})
+
+	// follow available pagination link
+	collector.OnHTML(".next a[href]", func(e *colly.HTMLElement) {
+		collector.Visit(e.Attr("href"))
+	})
+
+	// parse information from details page
+	detailCollector.OnHTML(".offercontent", func(e *colly.HTMLElement) {
+		title := e.ChildText(".offer-titlebox h1")
+		detailsPlace := e.ChildText(".offer-titlebox__details .show-map-link strong")
+		detailsMeta := strings.Join(strings.Fields(e.ChildText(".offer-titlebox__details em")), " ")
+		var images []string
+		e.ForEach(".img-item", func(_ int, el *colly.HTMLElement) {
+			image := e.ChildAttr(".photo-glow img", "src")
+			images = append(images, image)
+		})
+		text := e.ChildText("#textContent p")
+
+		adverts = append(adverts, Adverts{
+			e.Request.URL.String(),
+			title,
+			detailsPlace,
+			detailsMeta,
+			images,
+			strings.TrimSpace(text),
+		})
+	})
+
+	collector.Visit(fmt.Sprintf("%s/%s/%s/%s", cfg.BASEURL, cfg.CATEGORY, cfg.SUBCATEGORY, cfg.REGION)) // start url
+
+	collector.Wait()
+
+	// debug
+	fmt.Println(len(adverts))
+	for _, advert := range adverts {
+		fmt.Printf("%s\n%s\n%s\n%s\n%s\n%v\n",
+			advert.Title, advert.URL, advert.Place, advert.Meta, advert.Text, advert.Images)
+		fmt.Println("===")
+	}
 }
