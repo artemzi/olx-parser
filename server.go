@@ -67,7 +67,8 @@ func init() {
 	case "dev":
 		log.SetLevel(log.DebugLevel)
 	case "prod":
-		f, err := os.OpenFile(fmt.Sprintf("./storage/logs/%s.log", time.Now().Local().Format("2006-01-02")),
+		f, err := os.OpenFile(fmt.Sprintf("./storage/logs/%s.log",
+			time.Now().Local().Format("2006-01-02")),
 			os.O_APPEND|os.O_WRONLY|os.O_CREATE,
 			0755)
 		if err != nil {
