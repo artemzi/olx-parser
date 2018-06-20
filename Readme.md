@@ -1,5 +1,12 @@
 # TODO
 
+     * olx client
+     * select / change config from checkboxes
+     * storage (mongo?)
+     * cross-posting / mail
+
+## usage
+
 Set variables for running it localy with:
 > export SERVICE_PORT="8000"
 
