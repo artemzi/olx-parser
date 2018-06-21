@@ -16,6 +16,7 @@ type Adverts struct {
 	Images  []string       `json: "images"`
 	Text    string         `json: "text"`
 	Price   string         `json: "price"`
+	Phone   string         `json: "phone"`
 }
 
 func (a Adverts) String() string {

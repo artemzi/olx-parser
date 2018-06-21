@@ -6,6 +6,7 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/gocolly/colly/queue"
 	log "github.com/sirupsen/logrus"
+	"github.com/gocolly/colly/proxy"
 	"net"
 	"net/http"
 	"strings"
@@ -27,6 +28,12 @@ func GetInstance() (c *colly.Collector) {
 		DomainGlob:  "*olx.*",
 		RandomDelay: 1 * time.Second,
 	})
+
+	rp, err := proxy.RoundRobinProxySwitcher("socks5://s5.citadel.cc:61080")
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.SetProxyFunc(rp)
 
 	c.WithTransport(&http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -83,22 +90,23 @@ func parse() (adverts []*entities.Adverts) {
 	})
 
 	// parse information from details page
-	dc.OnHTML(".offercontent", func(e *colly.HTMLElement) {
+	dc.OnHTML(".offerbody", func(e *colly.HTMLElement) {
 		var (
 			images []string
 			details []*entities.DetailsItem
 		)
 
 		title := e.ChildText(".offer-titlebox h1")
-		// example: Донецк, Донецкая область, Калининский
 		detailsPlace := e.ChildText(".offer-titlebox__details .show-map-link strong")
-		// example: Опубликовано с мобильного в 23:55, 20 июня 2018, Номер объявления: 540309546
+		price := e.ChildText(".price-label .xxxx-large")
+		phone := e.ChildText("#contact_methods .link-phone .xx-large")
 		detailsMeta := prettifyString(e.ChildText(".offer-titlebox__details em"))
+		text := e.ChildText("#textContent p")
+
 		e.ForEach(".img-item", func(_ int, el *colly.HTMLElement) {
-			image := e.ChildAttr(".photo-glow img", "src")
+			image := el.ChildAttr(".photo-glow img", "src")
 			images = append(images, image)
 		})
-		text := e.ChildText("#textContent p")
 		e.ForEach(".descriptioncontent .details .item", func(_ int, el *colly.HTMLElement) {
 			name := el.ChildText("th")
 			value := prettifyString(el.ChildText(".value a"))
@@ -107,7 +115,6 @@ func parse() (adverts []*entities.Adverts) {
 			}
 			details = append(details, &entities.DetailsItem{name, value})
 		})
-		price := e.ChildText(".price-label strong")
 
 		adverts = append(adverts, &entities.Adverts{
 			URL: e.Request.URL.String(),
@@ -118,6 +125,7 @@ func parse() (adverts []*entities.Adverts) {
 			Images: images,
 			Text: strings.TrimSpace(text),
 			Price: price,
+			Phone: phone,
 		})
 	})
 
@@ -130,3 +138,5 @@ func parse() (adverts []*entities.Adverts) {
 	dc.Wait()
 	return
 }
+
+// contact-button link-phone {'path':'phone', 'id':'sP6hU', 'id_raw': '425916310'} atClickTracking contact-a
