@@ -10,8 +10,11 @@ import (
 	"os/signal"
 	"time"
 
+	"encoding/json"
+	"github.com/artemzi/olx-parser/OlxClient"
+	"github.com/artemzi/olx-parser/entities"
 	"github.com/artemzi/olx-parser/version"
-	simplejson "github.com/bitly/go-simplejson"
+	"github.com/bitly/go-simplejson"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
@@ -24,17 +27,17 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func info(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	json := simplejson.New()
-	json.Set("version", version.RELEASE)
-	json.Set("commit", version.COMMIT)
-	json.Set("repo", version.REPO)
+	info := simplejson.New()
+	info.Set("version", version.RELEASE)
+	info.Set("commit", version.COMMIT)
+	info.Set("repo", version.REPO)
 
-	payload, err := json.MarshalJSON()
+	payload, err := info.MarshalJSON()
 	if err != nil {
 		log.Error(err)
 	}
 
+	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(payload)
 }
@@ -67,7 +70,8 @@ func init() {
 	case "dev":
 		log.SetLevel(log.DebugLevel)
 	case "prod":
-		f, err := os.OpenFile(fmt.Sprintf("./storage/logs/%s.log", time.Now().Local().Format("2006-01-02")),
+		f, err := os.OpenFile(fmt.Sprintf("./storage/logs/%s.log",
+			time.Now().Local().Format("2006-01-02")),
 			os.O_APPEND|os.O_WRONLY|os.O_CREATE,
 			0755)
 		if err != nil {
@@ -93,9 +97,24 @@ func main() {
 	}
 
 	r := mux.NewRouter()
+	r.HandleFunc("/", root).Methods("GET")
 	r.HandleFunc("/info", info).Methods("GET")
 	r.HandleFunc("/healthz", healthz).Methods("GET")
-	r.HandleFunc("/", root).Methods("GET")
+	r.HandleFunc("/adverts", func(w http.ResponseWriter, r *http.Request) { // TODO
+		data := olxclient.Run()
+		out, err := json.Marshal(&entities.AdvertsResponse{
+			len(data),
+			data,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(out)
+	}).Methods("POST")
+
 	r.Use(loggingMiddleware)
 
 	r.NotFoundHandler = http.HandlerFunc(logging(func(w http.ResponseWriter, r *http.Request) {
