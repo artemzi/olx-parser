@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/artemzi/olx-parser/version"
-	simplejson "github.com/bitly/go-simplejson"
+	"github.com/bitly/go-simplejson"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+	"encoding/json"
+	"github.com/artemzi/olx-parser/OlxClient"
 )
 
 const DEFAULTPORT = "8080"
@@ -25,12 +27,12 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 
 func info(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	json := simplejson.New()
-	json.Set("version", version.RELEASE)
-	json.Set("commit", version.COMMIT)
-	json.Set("repo", version.REPO)
+	info := simplejson.New()
+	info.Set("version", version.RELEASE)
+	info.Set("commit", version.COMMIT)
+	info.Set("repo", version.REPO)
 
-	payload, err := json.MarshalJSON()
+	payload, err := info.MarshalJSON()
 	if err != nil {
 		log.Error(err)
 	}
@@ -94,9 +96,14 @@ func main() {
 	}
 
 	r := mux.NewRouter()
+	r.HandleFunc("/", root).Methods("GET")
 	r.HandleFunc("/info", info).Methods("GET")
 	r.HandleFunc("/healthz", healthz).Methods("GET")
-	r.HandleFunc("/", root).Methods("GET")
+	r.HandleFunc("/adverts", func(w http.ResponseWriter, r *http.Request) { // TODO
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(olxclient.Run())
+	}).Methods("POST")
+
 	r.Use(loggingMiddleware)
 
 	r.NotFoundHandler = http.HandlerFunc(logging(func(w http.ResponseWriter, r *http.Request) {
