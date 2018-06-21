@@ -55,6 +55,10 @@ func InitLogs(collector ...*colly.Collector) {
 	}
 }
 
+func prettifyString(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func parse() (adverts []*entities.Adverts) {
 	cfg := cfg2.NewRequestCfg()
 	c := GetInstance()
@@ -80,25 +84,40 @@ func parse() (adverts []*entities.Adverts) {
 
 	// parse information from details page
 	dc.OnHTML(".offercontent", func(e *colly.HTMLElement) {
+		var (
+			images []string
+			details []*entities.DetailsItem
+		)
+
 		title := e.ChildText(".offer-titlebox h1")
 		// example: Донецк, Донецкая область, Калининский
 		detailsPlace := e.ChildText(".offer-titlebox__details .show-map-link strong")
 		// example: Опубликовано с мобильного в 23:55, 20 июня 2018, Номер объявления: 540309546
-		detailsMeta := strings.Join(strings.Fields(e.ChildText(".offer-titlebox__details em")), " ")
-		var images []string
+		detailsMeta := prettifyString(e.ChildText(".offer-titlebox__details em"))
 		e.ForEach(".img-item", func(_ int, el *colly.HTMLElement) {
 			image := e.ChildAttr(".photo-glow img", "src")
 			images = append(images, image)
 		})
 		text := e.ChildText("#textContent p")
+		e.ForEach(".descriptioncontent .details .item", func(_ int, el *colly.HTMLElement) {
+			name := el.ChildText("th")
+			value := prettifyString(el.ChildText(".value a"))
+			if "" == value {
+				value = el.ChildText(".value strong")
+			}
+			details = append(details, &entities.DetailsItem{name, value})
+		})
+		price := e.ChildText(".price-label strong")
 
 		adverts = append(adverts, &entities.Adverts{
 			URL: e.Request.URL.String(),
 			Title: title,
 			Place: detailsPlace,
 			Meta: detailsMeta,
+			Details: details,
 			Images: images,
 			Text: strings.TrimSpace(text),
+			Price: price,
 		})
 	})
 
