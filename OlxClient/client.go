@@ -3,8 +3,12 @@ package main
 import (
 	"fmt"
 	"github.com/gocolly/colly"
-
+	"github.com/gocolly/colly/queue"
 	"strings"
+	log "github.com/sirupsen/logrus"
+	"net/http"
+	"net"
+	"time"
 )
 
 // Defaults (will be changed in future)
@@ -36,6 +40,12 @@ func main() {
 		"donetsk",
 	}
 
+	// create a request queue with 2 consumer threads
+	q, _ := queue.New(
+		2, // Number of consumer threads
+		&queue.InMemoryQueueStorage{MaxSize: 10000}, // Use default queue storage
+	)
+
 	// Instantiate default collector
 	collector := colly.NewCollector(
 		colly.MaxDepth(2),
@@ -43,6 +53,19 @@ func main() {
 		colly.Async(true),
 		colly.CacheDir("./.cache"),
 	)
+
+	collector.WithTransport(&http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   60 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   40 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	})
 
 	// Instantiate collector for details page
 	detailCollector := collector.Clone()
@@ -54,14 +77,24 @@ func main() {
 	})
 
 	// follow available pagination link
-	collector.OnHTML(".next a[href]", func(e *colly.HTMLElement) {
-		collector.Visit(e.Attr("href"))
+	collector.OnHTML(".next a", func(e *colly.HTMLElement) {
+		e.Request.Visit(e.Attr("href"))
+	})
+
+	collector.OnRequest(func(r *colly.Request) {
+		log.Println("Visiting", r.URL.String())
+	})
+
+	collector.OnError(func(r *colly.Response, err error) {
+		log.Error("Request URL:", r.Request.URL, "failed with response:", r, "\nError:", err)
 	})
 
 	// parse information from details page
 	detailCollector.OnHTML(".offercontent", func(e *colly.HTMLElement) {
 		title := e.ChildText(".offer-titlebox h1")
+		// example: Донецк, Донецкая область, Калининский
 		detailsPlace := e.ChildText(".offer-titlebox__details .show-map-link strong")
+		// example: Опубликовано с мобильного в 23:55, 20 июня 2018, Номер объявления: 540309546
 		detailsMeta := strings.Join(strings.Fields(e.ChildText(".offer-titlebox__details em")), " ")
 		var images []string
 		e.ForEach(".img-item", func(_ int, el *colly.HTMLElement) {
@@ -80,15 +113,16 @@ func main() {
 		})
 	})
 
-	collector.Visit(fmt.Sprintf("%s/%s/%s/%s", cfg.BASEURL, cfg.CATEGORY, cfg.SUBCATEGORY, cfg.REGION)) // start url
+	// 500 - num pages to visit, there is no need in more than current value
+	for i := 1; i <= 500; i++ {
+		q.AddURL(fmt.Sprintf("%s/%s/%s/%s?page=%d", cfg.BASEURL, cfg.CATEGORY, cfg.SUBCATEGORY, cfg.REGION, i))
+	}
+	q.Run(collector)
 
 	collector.Wait()
 
 	// debug
 	fmt.Println(len(adverts))
-	for _, advert := range adverts {
-		fmt.Printf("%s\n%s\n%s\n%s\n%s\n%v\n",
-			advert.Title, advert.URL, advert.Place, advert.Meta, advert.Text, advert.Images)
-		fmt.Println("===")
-	}
+	fmt.Printf("%s\n%s\n%s\n%s\n%s\n%v\n",
+		adverts[0].Title, adverts[0].URL, adverts[0].Place, adverts[0].Meta, adverts[0].Text, adverts[0].Images)
 }
