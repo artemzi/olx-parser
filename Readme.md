@@ -18,7 +18,7 @@ docker run -p 8000:8000 olx-parser
 
 request (will be changed) for debug:
 ```Bash
-curl --header "Content-Type: application/json" \                                   52 ↵   dev ●
+curl --header "Content-Type: application/json" \
         --request POST \
         http://0.0.0.0:8000/adverts -o response-example.json
 ```
