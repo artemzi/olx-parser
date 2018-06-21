@@ -99,7 +99,6 @@ func parse() (adverts []*entities.Adverts) {
 		title := e.ChildText(".offer-titlebox h1")
 		detailsPlace := e.ChildText(".offer-titlebox__details .show-map-link strong")
 		price := e.ChildText(".price-label .xxxx-large")
-		phone := e.ChildText("#contact_methods .link-phone .xx-large")
 		detailsMeta := prettifyString(e.ChildText(".offer-titlebox__details em"))
 		text := e.ChildText("#textContent p")
 
@@ -125,7 +124,6 @@ func parse() (adverts []*entities.Adverts) {
 			Images: images,
 			Text: strings.TrimSpace(text),
 			Price: price,
-			Phone: phone,
 		})
 	})
 
@@ -138,5 +136,3 @@ func parse() (adverts []*entities.Adverts) {
 	dc.Wait()
 	return
 }
-
-// contact-button link-phone {'path':'phone', 'id':'sP6hU', 'id_raw': '425916310'} atClickTracking contact-a

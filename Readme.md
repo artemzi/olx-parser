@@ -20,5 +20,5 @@ request (will be changed) for debug:
 ```Bash
 curl --header "Content-Type: application/json" \                                   52 ↵   dev ●
         --request POST \
-        http://0.0.0.0:8000/adverts
+        http://0.0.0.0:8000/adverts -o response-example.json
 ```

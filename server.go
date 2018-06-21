@@ -10,12 +10,13 @@ import (
 	"os/signal"
 	"time"
 
+	"encoding/json"
+	"github.com/artemzi/olx-parser/OlxClient"
+	"github.com/artemzi/olx-parser/entities"
 	"github.com/artemzi/olx-parser/version"
 	"github.com/bitly/go-simplejson"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
-	"encoding/json"
-	"github.com/artemzi/olx-parser/OlxClient"
 )
 
 const DEFAULTPORT = "8080"
@@ -26,7 +27,6 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func info(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
 	info := simplejson.New()
 	info.Set("version", version.RELEASE)
 	info.Set("commit", version.COMMIT)
@@ -37,6 +37,7 @@ func info(w http.ResponseWriter, r *http.Request) {
 		log.Error(err)
 	}
 
+	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(payload)
 }
@@ -100,8 +101,18 @@ func main() {
 	r.HandleFunc("/info", info).Methods("GET")
 	r.HandleFunc("/healthz", healthz).Methods("GET")
 	r.HandleFunc("/adverts", func(w http.ResponseWriter, r *http.Request) { // TODO
+		data := olxclient.Run()
+		out, err := json.Marshal(&entities.AdvertsResponse{
+			len(data),
+			data,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(olxclient.Run())
+		w.Write(out)
 	}).Methods("POST")
 
 	r.Use(loggingMiddleware)
