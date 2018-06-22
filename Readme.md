@@ -7,7 +7,7 @@
 
 ## usage
 
-Set variables for running it localy with:
+Set variables for running it locally with:
 > export SERVICE_PORT="8000"
 
 ```Bash
