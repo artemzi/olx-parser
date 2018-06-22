@@ -5,9 +5,11 @@ import (
 	cfg2 "github.com/artemzi/olx-parser/cfg"
 	"github.com/artemzi/olx-parser/entities"
 	"github.com/artemzi/olx-parser/helpers"
+
 	"github.com/gocolly/colly"
 	"github.com/gocolly/colly/proxy"
 	"github.com/gocolly/colly/queue"
+	"github.com/gocolly/redisstorage"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
@@ -69,11 +71,30 @@ func parse() (adverts []*entities.Adverts) {
 	dc := GetInstance()
 	InitLogs(c, dc)
 
-	// create a request queue with 2 consumer threads
-	q, _ := queue.New(
-		2, // Number of consumer threads
-		&queue.InMemoryQueueStorage{MaxSize: 10000}, // Use default queue storage
-	)
+	// create the redis storage
+	storage := &redisstorage.Storage{
+		Address:  "0.0.0.0:8081",
+		Password: "",
+		DB:       0,
+		Prefix:   "olx_test",
+	}
+
+	// add storage to the collector
+	err := c.SetStorage(storage)
+	if err != nil {
+		panic(err)
+	}
+
+	// delete previous data from storage
+	if err := storage.Clear(); err != nil {
+		log.Fatal(err)
+	}
+
+	// close redis client
+	defer storage.Client.Close()
+
+	// create a new request queue with redis storage backend
+	q, _ := queue.New(2, storage)
 
 	// visit each advert
 	c.OnHTML(".wrap .offer .space a[href]", func(e *colly.HTMLElement) {
@@ -126,7 +147,7 @@ func parse() (adverts []*entities.Adverts) {
 		})
 	})
 
-	// 500 - num pages to visit, there is no need in more than current value
+	// ?500? - num pages to visit, there is no need in more than current value
 	for i := 1; i <= 10; i++ { // TODO
 		q.AddURL(fmt.Sprintf("%s/%s/%s/%s?page=%d", cfg.BASEURL, cfg.CATEGORY, cfg.SUBCATEGORY, cfg.REGION, i))
 	}
