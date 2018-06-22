@@ -3,15 +3,16 @@ package olxclient
 import (
 	"fmt"
 	cfg2 "github.com/artemzi/olx-parser/cfg"
+	"github.com/artemzi/olx-parser/entities"
+	"github.com/artemzi/olx-parser/helpers"
 	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/proxy"
 	"github.com/gocolly/colly/queue"
 	log "github.com/sirupsen/logrus"
-	"github.com/gocolly/colly/proxy"
 	"net"
 	"net/http"
 	"strings"
 	"time"
-	"github.com/artemzi/olx-parser/entities"
 )
 
 func GetInstance() (c *colly.Collector) {
@@ -62,10 +63,6 @@ func InitLogs(collector ...*colly.Collector) {
 	}
 }
 
-func prettifyString(s string) string {
-	return strings.Join(strings.Fields(s), " ")
-}
-
 func parse() (adverts []*entities.Adverts) {
 	cfg := cfg2.NewRequestCfg()
 	c := GetInstance()
@@ -81,6 +78,7 @@ func parse() (adverts []*entities.Adverts) {
 	// visit each advert
 	c.OnHTML(".wrap .offer .space a[href]", func(e *colly.HTMLElement) {
 		link := e.Attr("href")
+		link = strings.Split(link, "#")[0] // remove anchor tag
 		dc.Visit(link)
 	})
 
@@ -92,14 +90,14 @@ func parse() (adverts []*entities.Adverts) {
 	// parse information from details page
 	dc.OnHTML(".offerbody", func(e *colly.HTMLElement) {
 		var (
-			images []string
+			images  []string
 			details []*entities.DetailsItem
 		)
 
 		title := e.ChildText(".offer-titlebox h1")
 		detailsPlace := e.ChildText(".offer-titlebox__details .show-map-link strong")
 		price := e.ChildText(".price-label .xxxx-large")
-		detailsMeta := prettifyString(e.ChildText(".offer-titlebox__details em"))
+		t, id := helpers.ParseMeta(helpers.PrettifyString(e.ChildText(".offer-titlebox__details em")))
 		text := e.ChildText("#textContent p")
 
 		e.ForEach(".img-item", func(_ int, el *colly.HTMLElement) {
@@ -108,7 +106,7 @@ func parse() (adverts []*entities.Adverts) {
 		})
 		e.ForEach(".descriptioncontent .details .item", func(_ int, el *colly.HTMLElement) {
 			name := el.ChildText("th")
-			value := prettifyString(el.ChildText(".value a"))
+			value := helpers.PrettifyString(el.ChildText(".value a"))
 			if "" == value {
 				value = el.ChildText(".value strong")
 			}
@@ -116,19 +114,20 @@ func parse() (adverts []*entities.Adverts) {
 		})
 
 		adverts = append(adverts, &entities.Adverts{
-			URL: e.Request.URL.String(),
-			Title: title,
-			Place: detailsPlace,
-			Meta: detailsMeta,
-			Details: details,
-			Images: images,
-			Text: strings.TrimSpace(text),
-			Price: price,
+			Id:        id,
+			URL:       e.Request.URL.String(),
+			Title:     title,
+			Place:     detailsPlace,
+			CreatedAt: t,
+			Details:   details,
+			Images:    images,
+			Text:      strings.TrimSpace(text),
+			Price:     price,
 		})
 	})
 
 	// 500 - num pages to visit, there is no need in more than current value
-	for i := 1; i <= 500; i++ {
+	for i := 1; i <= 10; i++ { // TODO
 		q.AddURL(fmt.Sprintf("%s/%s/%s/%s?page=%d", cfg.BASEURL, cfg.CATEGORY, cfg.SUBCATEGORY, cfg.REGION, i))
 	}
 	q.Run(c)
