@@ -3,20 +3,20 @@ package entities
 import "time"
 
 type DetailsItem struct {
-	Name  string `json "name"`
-	Value string `json: "value"`
+	Name  string `json "name" bson: "name"`
+	Value string `json: "value" bson: "value"`
 }
 
 type Adverts struct {
-	Id        string         `json: "id"`
-	URL       string         `json: "url"`
-	Title     string         `json: "title"`
-	Place     string         `json: "place"`
-	CreatedAt time.Time      `json: "created_at"`
-	Details   []*DetailsItem `json: "details"`
-	Images    []string       `json: "images"`
-	Text      string         `json: "text"`
-	Price     string         `json: "price"`
+	Id        string         `json: "id" bson: "_id"`
+	URL       string         `json: "url" bson: "url"`
+	Title     string         `json: "title" bson: "title"`
+	Place     string         `json: "place" bson: "place"`
+	CreatedAt time.Time      `json: "created_at" bson: "created_at"`
+	Details   []*DetailsItem `json: "details" bson: "details"`
+	Images    []string       `json: "images" bson: "images"`
+	Text      string         `json: "text" bson: "text"`
+	Price     string         `json: "price" bson: "price"`
 	Phone     string         `json: "phone,omitempty"`
 }
 

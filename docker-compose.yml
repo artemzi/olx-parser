@@ -5,3 +5,11 @@ services:
     container_name: redis
     ports:
       - "8081:6379"
+  mongodb:
+    image: mongo:latest
+    hostname: mongo
+    container_name: "mongodb"
+    volumes:
+      - "./storage/db:/data/db"
+    ports:
+      - "27017:27017"
