@@ -4,6 +4,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
+	"strconv"
+	"fmt"
 )
 
 var month = map[string]string{
@@ -30,7 +32,12 @@ func ParseMeta(s string) (time.Time, string) {
 	data := strings.Split(s, ",")[1:] // [date, adverts_id]
 
 	date := strings.Split(strings.TrimSpace(data[0]), " ")
-	date[1] = month[date[1]]
+	date[1] = month[date[1]] // convert month
+
+	day, _ := strconv.Atoi(date[0])
+	if day < 10 { // fix day formatting
+		date[0] = fmt.Sprintf("%02d", day)
+	}
 
 	const shortForm = "02-Jan-2006"
 	t, err := time.Parse(shortForm, strings.Join(date, "-"))
