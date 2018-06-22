@@ -10,13 +10,14 @@ import (
 	"os/signal"
 	"time"
 
-	"encoding/json"
 	"github.com/artemzi/olx-parser/OlxClient"
-	"github.com/artemzi/olx-parser/entities"
 	"github.com/artemzi/olx-parser/version"
 	"github.com/bitly/go-simplejson"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+	"github.com/artemzi/olx-parser/entities"
+	"gopkg.in/mgo.v2"
+	"encoding/json"
 )
 
 const DEFAULTPORT = "8080"
@@ -101,10 +102,29 @@ func main() {
 	r.HandleFunc("/info", info).Methods("GET")
 	r.HandleFunc("/healthz", healthz).Methods("GET")
 	r.HandleFunc("/adverts", func(w http.ResponseWriter, r *http.Request) { // TODO
-		data := olxclient.Run()
+		err := olxclient.Run()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		session, err := mgo.Dial("0.0.0.0")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer session.Close()
+
+		session.SetMode(mgo.Monotonic, true)
+		c := session.DB("olxparser").C("adverts")
+
+		var adverts []*entities.Adverts
+		err = c.Find(nil).Limit(10).All(&adverts)
+		if err != nil {
+			panic(err)
+		}
+
 		out, err := json.Marshal(&entities.AdvertsResponse{
-			len(data),
-			data,
+			Size:    len(adverts),
+			Adverts: adverts,
 		})
 		if err != nil {
 			log.Fatal(err)

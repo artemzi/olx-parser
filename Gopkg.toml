@@ -47,3 +47,7 @@
 [[constraint]]
   name = "github.com/gocolly/colly"
   version = "1.0.0"
+
+[[constraint]]
+  branch = "v2"
+  name = "gopkg.in/mgo.v2"
